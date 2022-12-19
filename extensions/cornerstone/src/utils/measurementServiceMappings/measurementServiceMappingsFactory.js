@@ -1,13 +1,13 @@
-import cornerstone from 'cornerstone-core';
+import Length from './Length';
+import Bidirectional from './Bidirectional';
+import EllipticalROI from './EllipticalROI';
+import ArrowAnnotate from './ArrowAnnotate';
 
-const SUPPORTED_TOOLS = [
-  'Length',
-  'EllipticalRoi',
-  'RectangleRoi',
-  'ArrowAnnotate',
-];
-
-const measurementServiceMappingsFactory = measurementService => {
+const measurementServiceMappingsFactory = (
+  MeasurementService,
+  DisplaySetService,
+  CornerstoneViewportService
+) => {
   /**
    * Maps measurement service format object to cornerstone annotation object.
    *
@@ -15,126 +15,100 @@ const measurementServiceMappingsFactory = measurementService => {
    * @param {string} definition The source definition
    * @return {Object} Cornerstone annotation data
    */
-  const toAnnotation = (measurement, definition) => {
-    const {
-      id,
-      label,
-      description,
-      points,
-      unit,
-      SOPInstanceUID,
-      FrameOfReferenceUID,
-      referenceSeriesUID,
-    } = measurement;
-
-    return {
-      toolName: definition,
-      measurementData: {
-        sopInstanceUid: SOPInstanceUID,
-        frameOfReferenceUID: FrameOfReferenceUID,
-        SeriesInstanceUID: referenceSeriesUID,
-        unit,
-        text: label,
-        description,
-        handles: _getHandlesFromPoints(points),
-        _measurementServiceId: id,
-      },
-    };
-  };
-
-  /**
-   * Maps cornerstone annotation event data to measurement service format.
-   *
-   * @param {Object} cornerstone Cornerstone event data
-   * @return {Measurement} Measurement instance
-   */
-  const toMeasurement = csToolsAnnotation => {
-    const { element, measurementData } = csToolsAnnotation;
-    const tool =
-      csToolsAnnotation.toolType ||
-      csToolsAnnotation.toolName ||
-      measurementData.toolType;
-
-    const validToolType = toolName => SUPPORTED_TOOLS.includes(toolName);
-
-    if (!validToolType(tool)) {
-      throw new Error('Tool not supported');
-    }
-
-    const {
-      SOPInstanceUID,
-      FrameOfReferenceUID,
-      SeriesInstanceUID,
-    } = _getAttributes(element);
-
-    const points = [];
-    points.push(measurementData.handles);
-
-    return {
-      id: measurementData._measurementServiceId,
-      SOPInstanceUID: SOPInstanceUID,
-      FrameOfReferenceUID,
-      referenceSeriesUID: SeriesInstanceUID,
-      label: measurementData.text,
-      description: measurementData.description,
-      unit: measurementData.unit,
-      area:
-        measurementData.cachedStats &&
-        measurementData.cachedStats
-          .area /* TODO: Add concept names instead (descriptor) */,
-      type: _getValueTypeFromToolType(tool),
-      points: _getPointsFromHandles(measurementData.handles),
-    };
-  };
-
-  const _getAttributes = element => {
-    const enabledElement = cornerstone.getEnabledElement(element);
-    const imageId = enabledElement.image.imageId;
-    const instance = cornerstone.metaData.get('instance', imageId);
-
-    return {
-      SOPInstanceUID: instance.SOPInstanceUID,
-      FrameOfReferenceUID: instance.FrameOfReferenceUID,
-      SeriesInstanceUID: instance.SeriesInstanceUID,
-    };
-  };
 
   const _getValueTypeFromToolType = toolType => {
-    const { POLYLINE, ELLIPSE, POINT } = measurementService.VALUE_TYPES;
+    const {
+      POLYLINE,
+      ELLIPSE,
+      RECTANGLE,
+      BIDIRECTIONAL,
+      POINT,
+    } = MeasurementService.VALUE_TYPES;
 
-    /* TODO: Relocate static value types */
+    // TODO -> I get why this was attempted, but its not nearly flexible enough.
+    // A single measurement may have an ellipse + a bidirectional measurement, for instances.
+    // You can't define a bidirectional tool as a single type..
     const TOOL_TYPE_TO_VALUE_TYPE = {
       Length: POLYLINE,
-      EllipticalRoi: ELLIPSE,
-      RectangleRoi: POLYLINE,
+      EllipticalROI: ELLIPSE,
+      RectangleROI: RECTANGLE,
+      Bidirectional: BIDIRECTIONAL,
       ArrowAnnotate: POINT,
     };
 
     return TOOL_TYPE_TO_VALUE_TYPE[toolType];
   };
 
-  const _getPointsFromHandles = handles => {
-    let points = [];
-    Object.keys(handles).map(handle => {
-      if (['start', 'end'].includes(handle)) {
-        let point = {};
-        if (handles[handle].x) point.x = handles[handle].x;
-        if (handles[handle].y) point.y = handles[handle].y;
-        points.push(point);
-      }
-    });
-    return points;
-  };
-
-  const _getHandlesFromPoints = points => {
-    return points
-      .map((p, i) => (i % 10 === 0 ? { start: p } : { end: p }))
-      .reduce((obj, item) => Object.assign(obj, { ...item }), {});
-  };
-
   return {
-    toAnnotation,
-    toMeasurement,
+    Length: {
+      toAnnotation: Length.toAnnotation,
+      toMeasurement: csToolsAnnotation =>
+        Length.toMeasurement(
+          csToolsAnnotation,
+          DisplaySetService,
+          CornerstoneViewportService,
+          _getValueTypeFromToolType
+        ),
+      matchingCriteria: [
+        {
+          valueType: MeasurementService.VALUE_TYPES.POLYLINE,
+          points: 2,
+        },
+      ],
+    },
+    Bidirectional: {
+      toAnnotation: Bidirectional.toAnnotation,
+      toMeasurement: csToolsAnnotation =>
+        Bidirectional.toMeasurement(
+          csToolsAnnotation,
+          DisplaySetService,
+          CornerstoneViewportService,
+          _getValueTypeFromToolType
+        ),
+      matchingCriteria: [
+        // TODO -> We should eventually do something like shortAxis + longAxis,
+        // But its still a little unclear how these automatic interpretations will work.
+        {
+          valueType: MeasurementService.VALUE_TYPES.POLYLINE,
+          points: 2,
+        },
+        {
+          valueType: MeasurementService.VALUE_TYPES.POLYLINE,
+          points: 2,
+        },
+      ],
+    },
+    EllipticalROI: {
+      toAnnotation: EllipticalROI.toAnnotation,
+      toMeasurement: csToolsAnnotation =>
+        EllipticalROI.toMeasurement(
+          csToolsAnnotation,
+          DisplaySetService,
+          CornerstoneViewportService,
+          _getValueTypeFromToolType
+        ),
+      matchingCriteria: [
+        {
+          valueType: MeasurementService.VALUE_TYPES.ELLIPSE,
+        },
+      ],
+    },
+    ArrowAnnotate: {
+      toAnnotation: ArrowAnnotate.toAnnotation,
+      toMeasurement: csToolsAnnotation =>
+        ArrowAnnotate.toMeasurement(
+          csToolsAnnotation,
+          DisplaySetService,
+          CornerstoneViewportService,
+          _getValueTypeFromToolType
+        ),
+      matchingCriteria: [
+        {
+          valueType: MeasurementService.VALUE_TYPES.POINT,
+          points: 1,
+        },
+      ],
+    },
   };
 };
 

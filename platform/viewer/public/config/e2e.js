@@ -1,25 +1,95 @@
 window.config = {
   routerBasename: '/',
+  // whiteLabelling: {},
+  extensions: [],
+  modes: [],
   showStudyList: true,
-  servers: {
-    dicomWeb: [
-      {
-        name: 'LocalStatic',
-        wadoUriRoot: '/testdata',
-        qidoRoot: '/testdata',
-        wadoRoot: '/testdata',
+  // below flag is for performance reasons, but it might not work for all servers
+  omitQuotationForMultipartRequest: true,
+  // filterQueryParam: false,
+  dataSources: [
+    {
+      friendlyName: 'StaticWado test data',
+      namespace: '@ohif/extension-default.dataSourcesModule.dicomweb',
+      sourceName: 'dicomweb',
+      configuration: {
+        name: 'DCM4CHEE',
+        wadoUriRoot: '/viewer-testdata',
+        qidoRoot: '/viewer-testdata',
+        wadoRoot: '/viewer-testdata',
         qidoSupportsIncludeField: false,
+        supportsReject: false,
         imageRendering: 'wadors',
+        thumbnailRendering: 'wadors',
         enableStudyLazyLoad: true,
         supportsFuzzyMatching: false,
+        supportsWildcard: true,
         staticWado: true,
+        singlepart: 'video,thumbnail,pdf',
       },
-    ],
+    },
+    // {
+    //   friendlyName: 'StaticWado default data',
+    //   namespace: '@ohif/extension-default.dataSourcesModule.dicomweb',
+    //   sourceName: 'dicomweb',
+    //   configuration: {
+    //     name: 'DCM4CHEE',
+    //     wadoUriRoot: '/dicomweb',
+    //     qidoRoot: '/dicomweb',
+    //     wadoRoot: '/dicomweb',
+    //     qidoSupportsIncludeField: false,
+    //     supportsReject: false,
+    //     imageRendering: 'wadors',
+    //     thumbnailRendering: 'wadors',
+    //     enableStudyLazyLoad: true,
+    //     supportsFuzzyMatching: false,
+    //     supportsWildcard: true,
+    //     staticWado: true,
+    //   },
+    // },
+    {
+      friendlyName: 'dicom json',
+      namespace: '@ohif/extension-default.dataSourcesModule.dicomjson',
+      sourceName: 'dicomjson',
+      configuration: {
+        name: 'json',
+      },
+    },
+    {
+      friendlyName: 'dicom local',
+      namespace: '@ohif/extension-default.dataSourcesModule.dicomlocal',
+      sourceName: 'dicomlocal',
+      configuration: {},
+    },
+  ],
+  httpErrorHandler: error => {
+    // This is 429 when rejected from the public idc sandbox too often.
+    console.warn(error.status);
+
+    // Could use services manager here to bring up a dialog/modal if needed.
+    console.warn('test, navigate to https://ohif.org/');
   },
-  // Extensions should be able to suggest default values for these?
-  // Or we can require that these be explicitly set
+  // whiteLabeling: {
+  //   /* Optional: Should return a React component to be rendered in the "Logo" section of the application's Top Navigation bar */
+  //   createLogoComponentFn: function (React) {
+  //     return React.createElement(
+  //       'a',
+  //       {
+  //         target: '_self',
+  //         rel: 'noopener noreferrer',
+  //         className: 'text-purple-600 line-through',
+  //         href: '/',
+  //       },
+  //       React.createElement('img',
+  //         {
+  //           src: './customLogo.svg',
+  //           className: 'w-8 h-8',
+  //         }
+  //       ))
+  //   },
+  // },
+  defaultDataSourceName: 'dicomweb',
   hotkeys: [
-    // ~ Global
     {
       commandName: 'incrementActiveViewport',
       label: 'Next Viewport',
@@ -30,18 +100,16 @@ window.config = {
       label: 'Previous Viewport',
       keys: ['left'],
     },
-    // Supported Keys: https://craig.is/killing/mice
-    // ~ Cornerstone Extension
     { commandName: 'rotateViewportCW', label: 'Rotate Right', keys: ['r'] },
     { commandName: 'rotateViewportCCW', label: 'Rotate Left', keys: ['l'] },
     { commandName: 'invertViewport', label: 'Invert', keys: ['i'] },
     {
-      commandName: 'flipViewportVertical',
+      commandName: 'flipViewportHorizontal',
       label: 'Flip Horizontally',
       keys: ['h'],
     },
     {
-      commandName: 'flipViewportHorizontal',
+      commandName: 'flipViewportVertical',
       label: 'Flip Vertically',
       keys: ['v'],
     },
@@ -49,22 +117,18 @@ window.config = {
     { commandName: 'scaleDownViewport', label: 'Zoom Out', keys: ['-'] },
     { commandName: 'fitViewportToWindow', label: 'Zoom to Fit', keys: ['='] },
     { commandName: 'resetViewport', label: 'Reset', keys: ['space'] },
-    // clearAnnotations
     { commandName: 'nextImage', label: 'Next Image', keys: ['down'] },
     { commandName: 'previousImage', label: 'Previous Image', keys: ['up'] },
-    // firstImage
-    // lastImage
-    {
-      commandName: 'previousViewportDisplaySet',
-      label: 'Previous Series',
-      keys: ['pagedown'],
-    },
-    {
-      commandName: 'nextViewportDisplaySet',
-      label: 'Next Series',
-      keys: ['pageup'],
-    },
-    // ~ Cornerstone Tools
+    // {
+    //   commandName: 'previousViewportDisplaySet',
+    //   label: 'Previous Series',
+    //   keys: ['pagedown'],
+    // },
+    // {
+    //   commandName: 'nextViewportDisplaySet',
+    //   label: 'Next Series',
+    //   keys: ['pageup'],
+    // },
     { commandName: 'setZoomTool', label: 'Zoom', keys: ['z'] },
     // ~ Window level presets
     {
